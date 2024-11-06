@@ -26,14 +26,17 @@ func ToJsons(rdbFilename string, jsonFilename string) error {
 	defer func() {
 		_ = jsonFile.Close()
 	}()
+	_, _ = jsonFile.WriteString("[\n")
+	empty := true
 
 	p := core.NewDecoder(rdbFile)
-	return p.Parse(func(object model.RedisObject) bool {
+	err = p.Parse(func(object model.RedisObject) bool {
 		data, err := json.Marshal(object)
 		if err != nil {
 			fmt.Printf("json marshal error: %v\n", err)
 			return true
 		}
+		data = append(data, ',', '\n')
 		_, err = jsonFile.Write(data)
 		if err != nil {
 			fmt.Printf("write json error: %v\n", err)
@@ -44,6 +47,21 @@ func ToJsons(rdbFilename string, jsonFilename string) error {
 			fmt.Printf("write json error: %v\n", err)
 			return true
 		}
+		empty = false
 		return true
 	})
+	if err != nil {
+		return err
+	}
+	if !empty {
+		_, err = jsonFile.Seek(-3, 2)
+		if err != nil {
+			return fmt.Errorf("error during seek in file: %v", err)
+		}
+	}
+	_, err = jsonFile.WriteString("\n]")
+	if err != nil {
+		return fmt.Errorf("write json error: %v", err)
+	}
+	return nil
 }

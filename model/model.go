@@ -28,7 +28,6 @@ type RedisObject interface {
 	GetDBIndex() int
 	GetExpiration() *time.Time
 	GetSize() int
-	SetSize(int)
 	GetElemCount() int
 }
 
@@ -38,6 +37,7 @@ type BaseObject struct {
 	Key        string     `json:"key"`
 	Expiration *time.Time `json:"expiration,omitempty"` // expiration time, expiration of persistent object is nil
 	Size       int        `json:"size,omitempty"`       // Size is rdb value size in Byte
+	Type       string     `json:"type"`
 }
 
 func (o *BaseObject) GetKey() string {
@@ -54,10 +54,6 @@ func (o *BaseObject) GetExpiration() *time.Time {
 
 func (o *BaseObject) GetSize() int {
 	return o.Size
-}
-
-func (o *BaseObject) SetSize(size int) {
-	o.Size = size
 }
 
 func (o *BaseObject) GetElemCount() int {

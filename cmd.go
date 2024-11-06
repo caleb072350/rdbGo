@@ -7,6 +7,21 @@ import (
 	"github.com/caleb072350/rdbGo/helper"
 )
 
+const help = `
+This is a tool to parse Redis' RDB files
+Options:
+  -c command, including: json/memory/aof
+  -o output file path
+
+Examples:
+1. convert rdb to json
+  rdb -c json -o dump.json dump.rdb
+2. generate memory report
+  rdb -c memory -o memory.csv dump.rdb
+3. convert to aof file
+  rdb -c aof -o dump.aof dump.rdb
+`
+
 func main() {
 	var cmd string
 	var output string
@@ -14,38 +29,29 @@ func main() {
 	flag.StringVar(&output, "o", "", "output file path")
 	flag.Parse()
 	src := flag.Arg(0)
+	if cmd == "" {
+		println(help)
+		return
+	}
+	if src == "" {
+		println("src file is required")
+		return
+	}
+	if output == "" {
+		println("output file is required")
+		return
+	}
+	var err error
 	switch cmd {
 	case "json":
-		if src == "" {
-			println("src file is required")
-			return
-		}
-		if output == "" {
-			println("output file is required")
-			return
-		}
-		err := helper.ToJsons(src, output)
-		if err != nil {
-			fmt.Printf("error: %v\n", err)
-			return
-		}
+		err = helper.ToJsons(src, output)
 	case "memory":
-		{
-			if src == "" {
-				println("src file is required")
-				return
-			}
-			if output == "" {
-				println("output file is required")
-				return
-			}
-			err := helper.MemoryProfile(src, output)
-			if err != nil {
-				fmt.Printf("error: %v\n", err)
-				return
-			}
-		}
+		err = helper.MemoryProfile(src, output)
 	default:
 		println("unknown command")
+	}
+	if err != nil {
+		fmt.Printf("error: %v", err)
+		return
 	}
 }
