@@ -47,6 +47,8 @@ func main() {
 		err = helper.ToJsons(src, output)
 	case "memory":
 		err = helper.MemoryProfile(src, output)
+	case "aof":
+		err = helper.ToAOF(src, output)
 	default:
 		println("unknown command")
 	}

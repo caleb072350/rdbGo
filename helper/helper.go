@@ -65,3 +65,33 @@ func ToJsons(rdbFilename string, jsonFilename string) error {
 	}
 	return nil
 }
+
+// ToAOF read rdb file and convert to aof file (Redis Serialization)
+func ToAOF(rdbFilename string, aofFilename string) error {
+	rdbFile, err := os.Open(rdbFilename)
+	if err != nil {
+		return fmt.Errorf("open rdb file %serror: %v", rdbFilename, err)
+	}
+	defer func() {
+		_ = rdbFile.Close()
+	}()
+	aofFile, err := os.Create(aofFilename)
+	if err != nil {
+		return fmt.Errorf("create aof file %s error: %v", aofFilename, err)
+	}
+	defer func() {
+		_ = aofFile.Close()
+	}()
+	p := core.NewDecoder(rdbFile)
+	err = p.Parse(func(object model.RedisObject) bool {
+		cmdLines := ObjectToCmd(object)
+		data := CmdLinesToResp(cmdLines)
+		_, err := aofFile.Write(data)
+		if err != nil {
+			fmt.Printf("write aof error: %v\n", err)
+			return true
+		}
+		return true
+	})
+	return err
+}

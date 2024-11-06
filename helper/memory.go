@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/caleb072350/rdbGo/bytefmt"
 	"github.com/caleb072350/rdbGo/core"
 	"github.com/caleb072350/rdbGo/model"
 )
@@ -39,7 +40,7 @@ func MemoryProfile(rdbFilename string, csvFilename string) error {
 			object.GetKey(),
 			object.GetType(),
 			strconv.Itoa(object.GetSize()),
-			FormatSize(uint64(object.GetSize())),
+			bytefmt.FormatSize(uint64(object.GetSize())),
 			strconv.Itoa(object.GetElemCount()),
 		})
 		if err != nil {
