@@ -201,7 +201,13 @@ func (dec *Decoder) checkHeader() error {
 
 // Parse parses rdb and callback
 func (p *Decoder) Parse(cb func(object model.RedisObject) bool) error {
-	err := p.checkHeader()
+	var err error
+	defer func() {
+		if err2 := recover(); err2 != nil {
+			err = fmt.Errorf("panic: %v", err2)
+		}
+	}()
+	err = p.checkHeader()
 	if err != nil {
 		return err
 	}

@@ -2,6 +2,7 @@ package helper
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 
@@ -11,6 +12,12 @@ import (
 
 // ToJsons read rdb file and convert to json each line as redis object
 func ToJsons(rdbFilename string, jsonFilename string) error {
+	if rdbFilename == "" {
+		return errors.New("src file path is required")
+	}
+	if jsonFilename == "" {
+		return errors.New("output file path is required")
+	}
 	rdbFile, err := os.Open(rdbFilename)
 	if err != nil {
 		return fmt.Errorf("open rdb file %serror: %v", rdbFilename, err)
@@ -68,6 +75,12 @@ func ToJsons(rdbFilename string, jsonFilename string) error {
 
 // ToAOF read rdb file and convert to aof file (Redis Serialization)
 func ToAOF(rdbFilename string, aofFilename string) error {
+	if rdbFilename == "" {
+		return errors.New("src file path is required")
+	}
+	if aofFilename == "" {
+		return errors.New("output file path is required")
+	}
 	rdbFile, err := os.Open(rdbFilename)
 	if err != nil {
 		return fmt.Errorf("open rdb file %serror: %v", rdbFilename, err)

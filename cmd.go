@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
 
 	"github.com/caleb072350/rdbGo/helper"
 )
@@ -12,6 +13,7 @@ This is a tool to parse Redis' RDB files
 Options:
   -c command, including: json/memory/aof
   -o output file path
+  -n number of result
 
 Examples:
 1. convert rdb to json
@@ -20,13 +22,17 @@ Examples:
   rdb -c memory -o memory.csv dump.rdb
 3. convert to aof file
   rdb -c aof -o dump.aof dump.rdb
+4. get largest keys
+  rdb -c bigkey -o dump.aof dump.rdb
 `
 
 func main() {
 	var cmd string
 	var output string
+	var n int
 	flag.StringVar(&cmd, "c", "", "command for rdb: json")
 	flag.StringVar(&output, "o", "", "output file path")
+	flag.IntVar(&n, "n", 0, "number of result")
 	flag.Parse()
 	src := flag.Arg(0)
 	if cmd == "" {
@@ -49,6 +55,8 @@ func main() {
 		err = helper.MemoryProfile(src, output)
 	case "aof":
 		err = helper.ToAOF(src, output)
+	case "bigkey":
+		err = helper.FindBiggestKeys(src, n, os.Stdout)
 	default:
 		println("unknown command")
 	}

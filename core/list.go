@@ -58,11 +58,6 @@ func (dec *Decoder) readZipList() ([][]byte, error) {
 }
 
 func (dec *Decoder) readZipListEntry(buf []byte, cursor *int) (result []byte, err error) {
-	defer func() {
-		if err2 := recover(); err2 != nil {
-			_ = fmt.Errorf("panic: %v", err2)
-		}
-	}()
 	prevLen := buf[*cursor]
 	*cursor++
 	if prevLen == zipBigPrevLen {
