@@ -1,4 +1,4 @@
-package parser
+package model
 
 import (
 	"encoding/json"
@@ -8,7 +8,7 @@ import (
 const (
 	// StringType is redis string
 	StringType = "string"
-	// StringType is redis list
+	// ListType is redis list
 	ListType = "list"
 	// SetType is redis set
 	SetType = "set"
@@ -21,19 +21,23 @@ const (
 // CallbackFunc process redis object
 type CallbackFunc func(object RedisObject) bool
 
-// RedisObject represents a redis object
+// RedisObject is interface for a redis object
 type RedisObject interface {
 	GetType() string
 	GetKey() string
 	GetDBIndex() int
 	GetExpiration() *time.Time
+	GetSize() int
+	SetSize(int)
+	GetElemCount() int
 }
 
 // BaseObject is basement of redis object
 type BaseObject struct {
 	DB         int        `json:"db"`
 	Key        string     `json:"key"`
-	Expiration *time.Time `json:"expiration"` // expiration time, expiration of persistent object is nil
+	Expiration *time.Time `json:"expiration,omitempty"` // expiration time, expiration of persistent object is nil
+	Size       int        `json:"size,omitempty"`       // Size is rdb value size in Byte
 }
 
 func (o *BaseObject) GetKey() string {
@@ -46,6 +50,18 @@ func (o *BaseObject) GetDBIndex() int {
 
 func (o *BaseObject) GetExpiration() *time.Time {
 	return o.Expiration
+}
+
+func (o *BaseObject) GetSize() int {
+	return o.Size
+}
+
+func (o *BaseObject) SetSize(size int) {
+	o.Size = size
+}
+
+func (o *BaseObject) GetElemCount() int {
+	return 0
 }
 
 // StringObject stores a string object
@@ -96,6 +112,10 @@ func (o *ListObject) MarshalJSON() ([]byte, error) {
 	return json.Marshal(o2)
 }
 
+func (o *ListObject) GetElemCount() int {
+	return len(o.Values)
+}
+
 // HashObject stores a hash object
 type HashObject struct {
 	*BaseObject
@@ -105,6 +125,10 @@ type HashObject struct {
 // GetType returns redis object type
 func (o *HashObject) GetType() string {
 	return HashType
+}
+
+func (o *HashObject) GetElemCount() int {
+	return len(o.Hash)
 }
 
 func (o *HashObject) MarshalJSON() ([]byte, error) {
@@ -131,6 +155,10 @@ type SetObject struct {
 // GetType returns redis object type
 func (o *SetObject) GetType() string {
 	return SetType
+}
+
+func (o *SetObject) GetElemCount() int {
+	return len(o.Members)
 }
 
 func (o *SetObject) MarshalJSON() ([]byte, error) {
@@ -163,4 +191,8 @@ type ZSetObject struct {
 // GetType returns redis object type
 func (o *ZSetObject) GetType() string {
 	return ZSetType
+}
+
+func (o *ZSetObject) GetElemCount() int {
+	return len(o.Entries)
 }

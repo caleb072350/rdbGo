@@ -3,6 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
+
+	"github.com/caleb072350/rdbGo/helper"
 )
 
 func main() {
@@ -22,10 +24,26 @@ func main() {
 			println("output file is required")
 			return
 		}
-		err := ToJsons(src, output)
+		err := helper.ToJsons(src, output)
 		if err != nil {
 			fmt.Printf("error: %v\n", err)
 			return
+		}
+	case "memory":
+		{
+			if src == "" {
+				println("src file is required")
+				return
+			}
+			if output == "" {
+				println("output file is required")
+				return
+			}
+			err := helper.MemoryProfile(src, output)
+			if err != nil {
+				fmt.Printf("error: %v\n", err)
+				return
+			}
 		}
 	default:
 		println("unknown command")

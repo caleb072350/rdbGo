@@ -1,5 +1,4 @@
-// RDB parser core
-package parser
+package core
 
 import (
 	"bufio"
@@ -10,6 +9,8 @@ import (
 	"io"
 	"strconv"
 	"time"
+
+	"github.com/caleb072350/rdbGo/model"
 )
 
 const (
@@ -42,16 +43,17 @@ const (
 	typeStreamListPacks
 )
 
-type Parser struct {
-	input  *bufio.Reader
-	buffer []byte
+type Decoder struct {
+	input     *bufio.Reader
+	readCount int
+	buffer    []byte
 }
 
-func NewParser(reader io.Reader) *Parser {
-	parser := new(Parser)
-	parser.input = bufio.NewReader(reader)
-	parser.buffer = make([]byte, 8)
-	return parser
+func NewDecoder(reader io.Reader) *Decoder {
+	decoder := new(Decoder)
+	decoder.input = bufio.NewReader(reader)
+	decoder.buffer = make([]byte, 8)
+	return decoder
 }
 
 var magicNumber = []byte("REDIS")
@@ -61,43 +63,43 @@ const (
 	maxVersion = 9
 )
 
-func (p *Parser) parse(cb func(object RedisObject) bool) error {
+func (dec *Decoder) parse(cb func(object model.RedisObject) bool) error {
 	var dbIndex int
 	var expireMs int64
 	for {
-		b, err := p.input.ReadByte()
+		b, err := dec.readByte()
 		if err != nil {
 			return nil
 		}
 		if b == opCodeEOF {
 			break
 		} else if b == opCodeSelectDB {
-			dbIndex64, _, err := p.readLength()
+			dbIndex64, _, err := dec.readLength()
 			if err != nil {
 				return err
 			}
 			dbIndex = int(dbIndex64)
 			continue
 		} else if b == opCodeExpireTime {
-			_, err = io.ReadFull(p.input, p.buffer)
+			err = dec.readFull(dec.buffer)
 			if err != nil {
 				return err
 			}
-			expireMs = int64(binary.LittleEndian.Uint64(p.buffer)) * 1000
+			expireMs = int64(binary.LittleEndian.Uint64(dec.buffer)) * 1000
 			continue
 		} else if b == opCodeExpireTimeMs {
-			_, err = io.ReadFull(p.input, p.buffer)
+			err = dec.readFull(dec.buffer)
 			if err != nil {
 				return err
 			}
-			expireMs = int64(binary.LittleEndian.Uint64(p.buffer))
+			expireMs = int64(binary.LittleEndian.Uint64(dec.buffer))
 			continue
 		} else if b == opCodeResizeDB {
-			_, _, err := p.readLength()
+			_, _, err := dec.readLength()
 			if err != nil {
 				return err
 			}
-			_, _, err = p.readLength()
+			_, _, err = dec.readLength()
 			if err != nil {
 				err = errors.New("Parse dbsize value failed: " + err.Error())
 				break
@@ -105,21 +107,23 @@ func (p *Parser) parse(cb func(object RedisObject) bool) error {
 			// todo
 			continue
 		} else if b == opCodeFreq {
-			_, err = p.input.ReadByte()
+			_, err = dec.readByte()
 			if err != nil {
 				return err
 			}
 		} else if b == opCodeIdle {
-			_, _, err = p.readLength()
+			_, _, err = dec.readLength()
 			if err != nil {
 				return err
 			}
 		}
-		key, err := p.readString()
+		begPos := dec.readCount
+		key, err := dec.readString()
 		if err != nil {
 			return err
 		}
-		base := &BaseObject{
+		keySize := dec.readCount - begPos
+		base := &model.BaseObject{
 			DB:  dbIndex,
 			Key: string(key),
 		}
@@ -127,10 +131,12 @@ func (p *Parser) parse(cb func(object RedisObject) bool) error {
 			expiration := time.Unix(0, expireMs*int64(time.Millisecond))
 			base.Expiration = &expiration
 		}
-		obj, err := p.readObject(b, base)
+		begPos = dec.readCount
+		obj, err := dec.readObject(b, base)
 		if err != nil {
 			return err
 		}
+		obj.SetSize(dec.readCount - begPos + keySize)
 		toBeContinued := cb(obj)
 		if !toBeContinued {
 			break
@@ -139,40 +145,40 @@ func (p *Parser) parse(cb func(object RedisObject) bool) error {
 	return nil
 }
 
-func (p *Parser) readObject(flag byte, base *BaseObject) (RedisObject, error) {
+func (dec *Decoder) readObject(flag byte, base *model.BaseObject) (model.RedisObject, error) {
 	switch flag {
 	case typeString:
-		bs, err := p.readString()
+		bs, err := dec.readString()
 		if err != nil {
 			return nil, err
 		}
-		return &StringObject{BaseObject: base, Value: bs}, nil
+		return &model.StringObject{BaseObject: base, Value: bs}, nil
 	case typeList:
-		list, err := p.readList()
+		list, err := dec.readList()
 		if err != nil {
 			return nil, err
 		}
-		return &ListObject{BaseObject: base, Values: list}, nil
+		return &model.ListObject{BaseObject: base, Values: list}, nil
 	case typeSet:
-		set, err := p.readSet()
+		set, err := dec.readSet()
 		if err != nil {
 			return nil, err
 		}
-		return &SetObject{BaseObject: base, Members: set}, nil
+		return &model.SetObject{BaseObject: base, Members: set}, nil
 	case typeHash:
-		hash, err := p.readHashMap()
+		hash, err := dec.readHashMap()
 		if err != nil {
 			return nil, err
 		}
-		return &HashObject{BaseObject: base, Hash: hash}, nil
+		return &model.HashObject{BaseObject: base, Hash: hash}, nil
 	}
 	return nil, fmt.Errorf("unknown type: %b", flag)
 }
 
 // checkHeader checks whether input has valid RDB file header
-func (p *Parser) checkHeader() error {
+func (dec *Decoder) checkHeader() error {
 	header := make([]byte, 9)
-	_, err := io.ReadFull(p.input, header)
+	err := dec.readFull(header)
 	if err == io.EOF {
 		return errors.New("empty file")
 	}
@@ -193,7 +199,7 @@ func (p *Parser) checkHeader() error {
 }
 
 // Parse parses rdb and callback
-func (p *Parser) Parse(cb func(object RedisObject) bool) error {
+func (p *Decoder) Parse(cb func(object model.RedisObject) bool) error {
 	err := p.checkHeader()
 	if err != nil {
 		return err

@@ -1,22 +1,22 @@
-package parser
+package core
 
 import (
 	"encoding/binary"
 	"errors"
 )
 
-func (p *Parser) readHashMap() (map[string][]byte, error) {
-	size, _, err := p.readLength()
+func (dec *Decoder) readHashMap() (map[string][]byte, error) {
+	size, _, err := dec.readLength()
 	if err != nil {
 		return nil, err
 	}
 	m := make(map[string][]byte)
 	for i := 0; i < int(size); i++ {
-		field, err := p.readString()
+		field, err := dec.readString()
 		if err != nil {
 			return nil, err
 		}
-		value, err := p.readString()
+		value, err := dec.readString()
 		if err != nil {
 			return nil, err
 		}
@@ -25,8 +25,8 @@ func (p *Parser) readHashMap() (map[string][]byte, error) {
 	return m, nil
 }
 
-func (p *Parser) readZipMapHash() (map[string][]byte, error) {
-	buf, err := p.readString()
+func (dec *Decoder) readZipMapHash() (map[string][]byte, error) {
+	buf, err := dec.readString()
 	if err != nil {
 		return nil, err
 	}
@@ -122,8 +122,8 @@ func countZipMapEntries(buf []byte, cursor *int) (int, error) {
 	return n, nil
 }
 
-func (p *Parser) readZipListHash() (map[string][]byte, error) {
-	buf, err := p.readString()
+func (dec *Decoder) readZipListHash() (map[string][]byte, error) {
+	buf, err := dec.readString()
 	if err != nil {
 		return nil, err
 	}
@@ -131,11 +131,11 @@ func (p *Parser) readZipListHash() (map[string][]byte, error) {
 	size := readZipListLength(buf, &cursor)
 	m := make(map[string][]byte)
 	for i := 0; i < size; i += 2 {
-		field, err := p.readZipListEntry(buf, &cursor)
+		field, err := dec.readZipListEntry(buf, &cursor)
 		if err != nil {
 			return nil, err
 		}
-		value, err := p.readZipListEntry(buf, &cursor)
+		value, err := dec.readZipListEntry(buf, &cursor)
 		if err != nil {
 			return nil, err
 		}

@@ -1,11 +1,12 @@
-package main
+package helper
 
 import (
 	"encoding/json"
 	"fmt"
 	"os"
 
-	"github.com/caleb072350/rdbGo/parser"
+	"github.com/caleb072350/rdbGo/core"
+	"github.com/caleb072350/rdbGo/model"
 )
 
 // ToJsons read rdb file and convert to json each line as redis object
@@ -26,8 +27,8 @@ func ToJsons(rdbFilename string, jsonFilename string) error {
 		_ = jsonFile.Close()
 	}()
 
-	p := parser.NewParser(rdbFile)
-	return p.Parse(func(object parser.RedisObject) bool {
+	p := core.NewDecoder(rdbFile)
+	return p.Parse(func(object model.RedisObject) bool {
 		data, err := json.Marshal(object)
 		if err != nil {
 			fmt.Printf("json marshal error: %v\n", err)

@@ -1,10 +1,9 @@
-package parser
+package core
 
 import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"strconv"
 
@@ -19,16 +18,16 @@ const (
 	len32Bit     = 0x80
 	len64Bit     = 0x81
 
-	EncodeInt8  = 0
-	EncodeInt16 = 1
-	EncodeInt32 = 2
-	EncodeLZF   = 3
+	encodeInt8  = 0
+	encodeInt16 = 1
+	encodeInt32 = 2
+	encodeLZF   = 3
 )
 
 // readLength parse Length Encoding
 // see: https://github.com/sripathikrishnan/redis-rdb-tools/wiki/Redis-RDB-Dump-File-Format#length-encoding
-func (p *Parser) readLength() (uint64, bool, error) {
-	firstByte, err := p.input.ReadByte()
+func (p *Decoder) readLength() (uint64, bool, error) {
+	firstByte, err := p.readByte()
 	if err != nil {
 		return 0, false, fmt.Errorf("read length failed: %v", err)
 	}
@@ -39,20 +38,20 @@ func (p *Parser) readLength() (uint64, bool, error) {
 	case len6Bit:
 		length = uint64(firstByte) & 0x3f
 	case len14Bit:
-		nextByte, err := p.input.ReadByte()
+		nextByte, err := p.readByte()
 		if err != nil {
 			return 0, false, fmt.Errorf("read len14Bit failed: %v", err)
 		}
 		length = (uint64(firstByte)&0x3f)<<8 | uint64(nextByte)
 	case len32or64Bit:
 		if firstByte == len32Bit {
-			_, err = io.ReadFull(p.input, p.buffer[0:4])
+			err = p.readFull(p.buffer[0:4])
 			if err != nil {
 				return 0, false, fmt.Errorf("read len32Bit failed: %v", err)
 			}
 			length = uint64(binary.BigEndian.Uint32(p.buffer))
 		} else if firstByte == len64Bit {
-			_, err = io.ReadFull(p.input, p.buffer)
+			err = p.readFull(p.buffer)
 			if err != nil {
 				return 0, false, fmt.Errorf("read len64Bit failed: %v", err)
 			}
@@ -67,57 +66,57 @@ func (p *Parser) readLength() (uint64, bool, error) {
 	return length, special, nil
 }
 
-func (p *Parser) readString() ([]byte, error) {
-	length, special, err := p.readLength()
+func (dec *Decoder) readString() ([]byte, error) {
+	length, special, err := dec.readLength()
 	if err != nil {
 		return nil, err
 	}
 
 	if special {
 		switch length {
-		case EncodeInt8:
-			b, err := p.input.ReadByte()
+		case encodeInt8:
+			b, err := dec.readByte()
 			return []byte(strconv.Itoa(int(b))), err
-		case EncodeInt16:
-			b, err := p.readUint16()
+		case encodeInt16:
+			b, err := dec.readUint16()
 			return []byte(strconv.Itoa(int(b))), err
-		case EncodeInt32:
-			b, err := p.readUint32()
+		case encodeInt32:
+			b, err := dec.readUint32()
 			return []byte(strconv.Itoa(int(b))), err
-		case EncodeLZF:
-			return p.readLZF()
+		case encodeLZF:
+			return dec.readLZF()
 		default:
 			return []byte{}, errors.New("unknown string encode type ")
 		}
 	}
 
 	res := make([]byte, length)
-	_, err = io.ReadFull(p.input, res)
+	err = dec.readFull(res)
 	return res, err
 }
 
-func (p *Parser) readUint16() (uint16, error) {
-	_, err := io.ReadFull(p.input, p.buffer[:2])
+func (dec *Decoder) readUint16() (uint16, error) {
+	err := dec.readFull(dec.buffer[:2])
 	if err != nil {
 		return 0, fmt.Errorf("read uint16 error: %v", err)
 	}
 
-	i := binary.LittleEndian.Uint16(p.buffer[:2])
+	i := binary.LittleEndian.Uint16(dec.buffer[:2])
 	return i, nil
 }
 
-func (p *Parser) readUint32() (uint32, error) {
-	_, err := io.ReadFull(p.input, p.buffer[:4])
+func (dec *Decoder) readUint32() (uint32, error) {
+	err := dec.readFull(dec.buffer[:4])
 	if err != nil {
 		return 0, fmt.Errorf("read uint16 error: %v", err)
 	}
 
-	i := binary.LittleEndian.Uint32(p.buffer[:4])
+	i := binary.LittleEndian.Uint32(dec.buffer[:4])
 	return i, nil
 }
 
-func (p *Parser) readLiteralFloat() (float64, error) {
-	first, err := p.input.ReadByte()
+func (dec *Decoder) readLiteralFloat() (float64, error) {
+	first, err := dec.readByte()
 	if err != nil {
 		return 0, err
 	}
@@ -130,7 +129,7 @@ func (p *Parser) readLiteralFloat() (float64, error) {
 	}
 
 	buf := make([]byte, first)
-	_, err = io.ReadFull(p.input, buf)
+	err = dec.readFull(buf)
 	if err != nil {
 		return 0, err
 	}
@@ -142,26 +141,26 @@ func (p *Parser) readLiteralFloat() (float64, error) {
 	return val, err
 }
 
-func (p *Parser) readFloat() (float64, error) {
-	_, err := io.ReadFull(p.input, p.buffer)
+func (dec *Decoder) readFloat() (float64, error) {
+	err := dec.readFull(dec.buffer)
 	if err != nil {
 		return 0, err
 	}
-	bits := binary.LittleEndian.Uint64(p.buffer)
+	bits := binary.LittleEndian.Uint64(dec.buffer)
 	return math.Float64frombits(bits), nil
 }
 
-func (p *Parser) readLZF() ([]byte, error) {
-	inLen, _, err := p.readLength()
+func (dec *Decoder) readLZF() ([]byte, error) {
+	inLen, _, err := dec.readLength()
 	if err != nil {
 		return nil, err
 	}
-	outLen, _, err := p.readLength()
+	outLen, _, err := dec.readLength()
 	if err != nil {
 		return nil, err
 	}
 	val := make([]byte, inLen)
-	_, err = io.ReadFull(p.input, val)
+	err = dec.readFull(val)
 	if err != nil {
 		return nil, err
 	}
